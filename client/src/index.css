@@ -1,10 +1,11 @@
+@import "@fontsource/inter";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  * {
-    @apply border-border;
+  :root {
+    --radius: 0.5rem;
   }
 
   body {
