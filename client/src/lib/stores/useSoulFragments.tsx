@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import * as THREE from "three";
+import { getLocalStorage, setLocalStorage } from "@/lib/utils";
 
 export type Dimension = 1 | 2 | 3;
 
@@ -20,6 +21,7 @@ export interface InteractiveObject {
   affectsDimension?: Dimension;
   affectsObjectId?: string;
   isActivated: boolean;
+  type?: "switch" | "door" | "platform" | "gravity_zone" | "time_zone";
 }
 
 interface SoulFragmentsState {
@@ -28,7 +30,9 @@ interface SoulFragmentsState {
   abilities: Ability[];
   interactiveObjects: InteractiveObject[];
   currentLevel: number;
+  maxLevel: number;
   gamePhase: "menu" | "playing" | "levelComplete";
+  combinedAbilities: string[];
   
   setCurrentDimension: (dimension: Dimension) => void;
   updatePlayerPosition: (dimension: Dimension, position: THREE.Vector3) => void;
@@ -39,6 +43,10 @@ interface SoulFragmentsState {
   resetGame: () => void;
   getCollectedAbilities: () => Ability[];
   canUnlockLevel: (level: number) => boolean;
+  checkAbilityCombinations: () => void;
+  hasCombinedAbility: (abilityName: string) => boolean;
+  saveProgress: () => void;
+  loadProgress: () => void;
 }
 
 const initialAbilities: Ability[] = [
@@ -75,13 +83,15 @@ const initialObjects: InteractiveObject[] = [
     position: [10, 0.5, 0],
     affectsDimension: 2,
     affectsObjectId: "door_2",
-    isActivated: false
+    isActivated: false,
+    type: "switch"
   },
   {
     id: "door_2",
     dimension: 2,
     position: [0, 1.5, 10],
-    isActivated: false
+    isActivated: false,
+    type: "door"
   },
   {
     id: "switch_2",
@@ -89,28 +99,49 @@ const initialObjects: InteractiveObject[] = [
     position: [-10, 0.5, 0],
     affectsDimension: 3,
     affectsObjectId: "platform_3",
-    isActivated: false
+    isActivated: false,
+    type: "switch"
   },
   {
     id: "platform_3",
     dimension: 3,
     position: [5, 0, 5],
-    isActivated: false
+    isActivated: false,
+    type: "platform"
+  },
+  {
+    id: "gravity_zone_1",
+    dimension: 2,
+    position: [-8, 2, 8],
+    isActivated: true,
+    type: "gravity_zone"
+  },
+  {
+    id: "time_zone_1",
+    dimension: 3,
+    position: [8, 2, -8],
+    isActivated: true,
+    type: "time_zone"
   }
 ];
 
 export const useSoulFragments = create<SoulFragmentsState>()(
-  subscribeWithSelector((set, get) => ({
-    currentDimension: 1,
-    playerPositions: {
-      1: new THREE.Vector3(0, 1, 0),
-      2: new THREE.Vector3(0, 1, 0),
-      3: new THREE.Vector3(0, 1, 0)
-    },
-    abilities: initialAbilities,
-    interactiveObjects: initialObjects,
-    currentLevel: 1,
-    gamePhase: "menu",
+  subscribeWithSelector((set, get) => {
+    const savedProgress = getLocalStorage("soulFragmentsProgress");
+    
+    return {
+      currentDimension: savedProgress?.currentDimension || 1,
+      playerPositions: {
+        1: new THREE.Vector3(0, 1, 0),
+        2: new THREE.Vector3(0, 1, 0),
+        3: new THREE.Vector3(0, 1, 0)
+      },
+      abilities: savedProgress?.abilities || initialAbilities,
+      interactiveObjects: savedProgress?.interactiveObjects || initialObjects,
+      currentLevel: savedProgress?.currentLevel || 1,
+      maxLevel: 3,
+      gamePhase: "menu",
+      combinedAbilities: savedProgress?.combinedAbilities || [],
     
     setCurrentDimension: (dimension) => {
       console.log(`Switching to dimension ${dimension}`);
@@ -135,6 +166,8 @@ export const useSoulFragments = create<SoulFragmentsState>()(
         )
       }));
       console.log(`Collected ability: ${abilityId}`);
+      
+      get().checkAbilityCombinations();
     },
     
     activateObject: (objectId) => {
@@ -193,6 +226,65 @@ export const useSoulFragments = create<SoulFragmentsState>()(
     canUnlockLevel: (level) => {
       const collectedCount = get().abilities.filter(a => a.collected).length;
       return collectedCount >= level;
+    },
+    
+    checkAbilityCombinations: () => {
+      const state = get();
+      const collected = state.abilities.filter(a => a.collected).map(a => a.id);
+      const newCombined: string[] = [];
+      
+      if (collected.includes("ability_1_jump") && collected.includes("ability_2_phase")) {
+        newCombined.push("phase_jump");
+        console.log("Unlocked combined ability: Phase Jump!");
+      }
+      
+      if (collected.includes("ability_2_phase") && collected.includes("ability_3_time")) {
+        newCombined.push("time_phase");
+        console.log("Unlocked combined ability: Time Phase!");
+      }
+      
+      if (collected.includes("ability_1_jump") && collected.includes("ability_3_time")) {
+        newCombined.push("time_jump");
+        console.log("Unlocked combined ability: Time Jump!");
+      }
+      
+      if (collected.length === 3) {
+        newCombined.push("ultimate_soul");
+        console.log("Unlocked ultimate ability: Soul Mastery!");
+      }
+      
+      set({ combinedAbilities: newCombined });
+    },
+    
+    hasCombinedAbility: (abilityName) => {
+      return get().combinedAbilities.includes(abilityName);
+    },
+    
+    saveProgress: () => {
+      const state = get();
+      const progress = {
+        currentDimension: state.currentDimension,
+        currentLevel: state.currentLevel,
+        abilities: state.abilities,
+        interactiveObjects: state.interactiveObjects,
+        combinedAbilities: state.combinedAbilities
+      };
+      setLocalStorage("soulFragmentsProgress", progress);
+      console.log("Progress saved!");
+    },
+    
+    loadProgress: () => {
+      const savedProgress = getLocalStorage("soulFragmentsProgress");
+      if (savedProgress) {
+        set({
+          currentDimension: savedProgress.currentDimension,
+          currentLevel: savedProgress.currentLevel,
+          abilities: savedProgress.abilities,
+          interactiveObjects: savedProgress.interactiveObjects,
+          combinedAbilities: savedProgress.combinedAbilities
+        });
+        console.log("Progress loaded!");
+      }
     }
-  }))
+  }})
 );

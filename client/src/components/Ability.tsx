@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Ability as AbilityType } from "@/lib/stores/useSoulFragments";
+import { Particles } from "./Particles";
 
 interface AbilityProps {
   ability: AbilityType;
@@ -32,6 +33,8 @@ export function Ability({ ability, isActiveDimension }: AbilityProps) {
   
   return (
     <group position={ability.position}>
+      {isActiveDimension && <Particles position={ability.position} color={ability.color} count={30} size={0.08} />}
+      
       <mesh ref={glowRef}>
         <sphereGeometry args={[0.8, 16, 16]} />
         <meshBasicMaterial

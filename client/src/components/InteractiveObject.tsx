@@ -11,13 +11,21 @@ interface InteractiveObjectProps {
 export function InteractiveObject({ object, isActiveDimension }: InteractiveObjectProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   
-  const isSwitch = object.id.startsWith("switch");
-  const isDoor = object.id.startsWith("door");
-  const isPlatform = object.id.startsWith("platform");
+  const isSwitch = object.type === "switch";
+  const isDoor = object.type === "door";
+  const isPlatform = object.type === "platform";
+  const isGravityZone = object.type === "gravity_zone";
+  const isTimeZone = object.type === "time_zone";
   
   useFrame((state) => {
     if (meshRef.current && isSwitch && !object.isActivated) {
       meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 2) * 0.2;
+    }
+    
+    if (meshRef.current && (isGravityZone || isTimeZone)) {
+      meshRef.current.rotation.y += 0.01;
+      const scale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+      meshRef.current.scale.set(scale, scale, scale);
     }
   });
   
@@ -80,6 +88,37 @@ export function InteractiveObject({ object, isActiveDimension }: InteractiveObje
           color="#666666"
           transparent={!isActiveDimension || !object.isActivated}
           opacity={!object.isActivated ? 0 : (isActiveDimension ? 1 : 0.3)}
+        />
+      </mesh>
+    );
+  }
+  
+  if (isGravityZone) {
+    return (
+      <mesh ref={meshRef} position={object.position}>
+        <sphereGeometry args={[2, 16, 16]} />
+        <meshStandardMaterial
+          color="#9d4edd"
+          transparent
+          opacity={isActiveDimension ? 0.3 : 0.1}
+          emissive="#9d4edd"
+          emissiveIntensity={isActiveDimension ? 0.5 : 0.1}
+          wireframe
+        />
+      </mesh>
+    );
+  }
+  
+  if (isTimeZone) {
+    return (
+      <mesh ref={meshRef} position={object.position}>
+        <torusGeometry args={[2, 0.5, 16, 32]} />
+        <meshStandardMaterial
+          color="#ffd60a"
+          transparent
+          opacity={isActiveDimension ? 0.4 : 0.1}
+          emissive="#ffd60a"
+          emissiveIntensity={isActiveDimension ? 0.6 : 0.1}
         />
       </mesh>
     );

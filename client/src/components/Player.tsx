@@ -52,12 +52,37 @@ export function Player({ dimension }: PlayerProps) {
     
     const keys = getKeys();
     
-    const timeMultiplier = hasTimeSlow && dimension === 3 ? 0.5 : 1.0;
+    let inGravityZone = false;
+    let inTimeZone = false;
+    
+    interactiveObjects.forEach(obj => {
+      if (obj.type === "gravity_zone" && obj.dimension === dimension && obj.isActivated) {
+        const distance = meshRef.current!.position.distanceTo(new THREE.Vector3(...obj.position));
+        if (distance < 2.5) {
+          inGravityZone = true;
+        }
+      }
+      if (obj.type === "time_zone" && obj.dimension === dimension && obj.isActivated) {
+        const distance = meshRef.current!.position.distanceTo(new THREE.Vector3(...obj.position));
+        if (distance < 2.5) {
+          inTimeZone = true;
+        }
+      }
+    });
+    
+    let timeMultiplier = 1.0;
+    if (hasTimeSlow && dimension === 3) timeMultiplier = 0.5;
+    if (inTimeZone) timeMultiplier *= 0.3;
+    
     const effectiveDelta = delta * timeMultiplier;
     
     const speed = hasPhaseShift && dimension === 2 ? 12 : 8;
     const jumpForce = 6;
-    const gravity = 20;
+    let gravity = 20;
+    
+    if (inGravityZone) {
+      gravity = -5;
+    }
     
     const moveX = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
     const moveZ = (keys.back ? 1 : 0) - (keys.forward ? 1 : 0);

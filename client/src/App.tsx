@@ -4,6 +4,8 @@ import { KeyboardControls } from "@react-three/drei";
 import "@fontsource/inter";
 import { Game } from "./components/Game";
 import { GameUI } from "./components/GameUI";
+import { SoundManager } from "./components/SoundManager";
+import { Tutorial } from "./components/Tutorial";
 
 enum Controls {
   forward = 'forward',
@@ -48,6 +50,8 @@ function App() {
             <Game />
           </Canvas>
           <GameUI />
+          <SoundManager />
+          <Tutorial />
         </KeyboardControls>
       )}
     </div>

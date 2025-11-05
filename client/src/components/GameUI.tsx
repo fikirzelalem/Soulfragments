@@ -1,9 +1,21 @@
 import { useSoulFragments } from "@/lib/stores/useSoulFragments";
 
+import { useEffect } from "react";
+
 export function GameUI() {
-  const { currentDimension, abilities, currentLevel, gamePhase, startGame } = useSoulFragments();
+  const { currentDimension, abilities, currentLevel, gamePhase, startGame, combinedAbilities, maxLevel, saveProgress, loadProgress, resetGame } = useSoulFragments();
   
   const collectedAbilities = abilities.filter(a => a.collected);
+  
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (gamePhase === "playing") {
+        saveProgress();
+      }
+    }, 30000);
+    
+    return () => clearInterval(autoSaveInterval);
+  }, [gamePhase, saveProgress]);
   
   const getDimensionName = () => {
     switch (currentDimension) {
@@ -39,12 +51,23 @@ export function GameUI() {
             <br />
             Actions in one world affect the others!
           </p>
-          <button
-            onClick={startGame}
-            className="bg-gradient-to-r from-pink-500 via-cyan-500 to-yellow-500 text-white px-8 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-opacity"
-          >
-            Start Game
-          </button>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => {
+                loadProgress();
+                startGame();
+              }}
+              className="bg-gray-700 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-gray-600 transition-colors"
+            >
+              Load Game
+            </button>
+            <button
+              onClick={startGame}
+              className="bg-gradient-to-r from-pink-500 via-cyan-500 to-yellow-500 text-white px-8 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-opacity"
+            >
+              New Game
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -80,6 +103,22 @@ export function GameUI() {
           </div>
         </div>
         
+        {combinedAbilities.length > 0 && (
+          <div className="mb-3 border-t border-gray-600 pt-2">
+            <div className="text-xs uppercase tracking-wider text-gray-400 mb-2">Combined Powers</div>
+            <div className="space-y-1">
+              {combinedAbilities.map(combo => (
+                <div
+                  key={combo}
+                  className="text-sm text-yellow-300 font-bold"
+                >
+                  ⚡ {combo.replace(/_/g, ' ').toUpperCase()}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="text-xs text-gray-400 border-t border-gray-600 pt-2 mt-2">
           <div>Press 1, 2, 3 to switch dimensions</div>
         </div>
@@ -96,8 +135,13 @@ export function GameUI() {
       
       {collectedAbilities.length === abilities.length && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-pink-500 via-cyan-500 to-yellow-500 p-4 rounded-lg text-white text-center">
-          <div className="text-2xl font-bold">All Abilities Collected!</div>
-          <div className="text-sm">You have mastered all dimensions!</div>
+          <div className="text-2xl font-bold">Level {currentLevel} Complete!</div>
+          <div className="text-sm">
+            {currentLevel < maxLevel ? 'All abilities collected! Ready for next level?' : 'You have mastered all dimensions!'}
+          </div>
+          {combinedAbilities.includes("ultimate_soul") && (
+            <div className="text-lg mt-2 font-bold">✨ ULTIMATE SOUL MASTERY UNLOCKED ✨</div>
+          )}
         </div>
       )}
     </div>
