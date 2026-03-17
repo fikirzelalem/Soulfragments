@@ -1,6 +1,7 @@
 //
 //  GameViewController.swift
 //  Soul Fragments
+//  Created by Fikir  on 2/24/26.
 //
 
 import UIKit
@@ -17,7 +18,7 @@ class GameViewController: UIViewController {
 
     var playerNode: SCNNode!
     var cameraNode: SCNNode!
-    var cameraArm: SCNNode!   // pivot that follows the player
+    var cameraArm: SCNNode!
 
     // MARK: - Lifecycle
 
@@ -36,10 +37,16 @@ class GameViewController: UIViewController {
         gameState.startGame()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        scnView.frame = view.bounds
+    }
+
     // MARK: - View
 
     private func setupView() {
-        scnView = self.view as! SCNView
+        scnView = self.view as? SCNView
+        scnView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         scnView.showsStatistics = true
         scnView.antialiasingMode = .multisampling4X
         scnView.allowsCameraControl = false
@@ -98,8 +105,8 @@ class GameViewController: UIViewController {
                 chamferRadius: 0.04
             )
             let mat = SCNMaterial()
-            mat.diffuse.contents  = UIColor(red: 0.12, green: 0.06, blue: 0.18, alpha: 1.0)
-            mat.specular.contents = UIColor(red: 0.3,  green: 0.1,  blue: 0.5,  alpha: 1.0)
+            mat.diffuse.contents   = UIColor(red: 0.12, green: 0.06, blue: 0.18, alpha: 1.0)
+            mat.specular.contents  = UIColor(red: 0.3,  green: 0.1,  blue: 0.5,  alpha: 1.0)
             mat.roughness.contents = 0.85
             box.materials = [mat]
 
@@ -114,28 +121,26 @@ class GameViewController: UIViewController {
     // MARK: - Player
 
     private func setupPlayer() {
-        let capsule = SCNCapsule(capRadius: 0.35, height: 1.5)
-        let mat = SCNMaterial()
-        mat.diffuse.contents  = UIColor(red: 0.7,  green: 0.15, blue: 0.95, alpha: 1.0)
-        mat.emission.contents = UIColor(red: 0.35, green: 0.0,  blue: 0.55, alpha: 1.0)
-        mat.roughness.contents = 0.4
-        capsule.materials = [mat]
-
-        playerNode = SCNNode(geometry: capsule)
+        // Root node — collision capsule, no geometry
+        playerNode = SCNNode()
         playerNode.name = "player"
-        playerNode.position = SCNVector3(0, 0.75, 0)
+        playerNode.position = SCNVector3(0, 0.9, 0)
 
-        let shape = SCNPhysicsShape(geometry: capsule, options: nil)
+        let collisionCapsule = SCNCapsule(capRadius: 0.35, height: 1.8)
+        let shape = SCNPhysicsShape(geometry: collisionCapsule, options: nil)
         playerNode.physicsBody = SCNPhysicsBody(type: .kinematic, shape: shape)
 
-        // Glow point light attached to player
+        // Build humanoid and attach
+        let humanoid = buildHumanoid()
+        playerNode.addChildNode(humanoid)
+
+        // Glow light
         let glow = SCNLight()
         glow.type = .omni
         glow.color = UIColor(red: 0.6, green: 0.0, blue: 1.0, alpha: 1.0)
-        glow.intensity = 250
+        glow.intensity = 300
         glow.attenuationStartDistance = 0.5
         glow.attenuationEndDistance = 5
-
         let glowNode = SCNNode()
         glowNode.light = glow
         playerNode.addChildNode(glowNode)
@@ -143,10 +148,121 @@ class GameViewController: UIViewController {
         scene.rootNode.addChildNode(playerNode)
     }
 
+    /// Builds a humanoid figure from SceneKit primitives.
+    /// Root is at waist level; total height ~1.8 units.
+    private func buildHumanoid() -> SCNNode {
+        let root = SCNNode()
+
+        func bodyMat(emission: Float = 0.3) -> SCNMaterial {
+            let m = SCNMaterial()
+            m.diffuse.contents  = UIColor(red: 0.18, green: 0.08, blue: 0.28, alpha: 1.0)
+            m.emission.contents = UIColor(red: CGFloat(0.5 * emission), green: 0.0, blue: CGFloat(0.8 * emission), alpha: 1.0)
+            m.roughness.contents = 0.6
+            return m
+        }
+
+        func glowMat() -> SCNMaterial {
+            let m = SCNMaterial()
+            m.diffuse.contents  = UIColor(red: 0.7,  green: 0.1,  blue: 1.0, alpha: 1.0)
+            m.emission.contents = UIColor(red: 0.5,  green: 0.0,  blue: 0.9, alpha: 1.0)
+            m.roughness.contents = 0.2
+            return m
+        }
+
+        func add(_ geo: SCNGeometry, mat: SCNMaterial, pos: SCNVector3,
+                 rot: SCNVector4 = SCNVector4(0,0,0,0), to parent: SCNNode) {
+            geo.materials = [mat]
+            let n = SCNNode(geometry: geo)
+            n.position = pos
+            if rot.w != 0 { n.rotation = rot }
+            parent.addChildNode(n)
+        }
+
+        // Head
+        add(SCNSphere(radius: 0.18),
+            mat: bodyMat(emission: 0.5),
+            pos: SCNVector3(0, 0.72, 0), to: root)
+
+        // Eyes (small glowing spheres)
+        add(SCNSphere(radius: 0.04), mat: glowMat(),
+            pos: SCNVector3(-0.07, 0.76, 0.16), to: root)
+        add(SCNSphere(radius: 0.04), mat: glowMat(),
+            pos: SCNVector3( 0.07, 0.76, 0.16), to: root)
+
+        // Neck
+        add(SCNCylinder(radius: 0.07, height: 0.12),
+            mat: bodyMat(),
+            pos: SCNVector3(0, 0.52, 0), to: root)
+
+        // Torso
+        add(SCNBox(width: 0.42, height: 0.48, length: 0.22, chamferRadius: 0.02),
+            mat: bodyMat(emission: 0.4),
+            pos: SCNVector3(0, 0.22, 0), to: root)
+
+        // Shoulders (decorative spheres)
+        add(SCNSphere(radius: 0.1), mat: glowMat(),
+            pos: SCNVector3(-0.26, 0.4, 0), to: root)
+        add(SCNSphere(radius: 0.1), mat: glowMat(),
+            pos: SCNVector3( 0.26, 0.4, 0), to: root)
+
+        // Upper arms
+        let armRot = SCNVector4(0, 0, 1, Float.pi / 2)
+        let armRotR = SCNVector4(0, 0, 1, -Float.pi / 2)
+        add(SCNCylinder(radius: 0.07, height: 0.36),
+            mat: bodyMat(), pos: SCNVector3(-0.36, 0.22, 0),
+            rot: armRot, to: root)
+        add(SCNCylinder(radius: 0.07, height: 0.36),
+            mat: bodyMat(), pos: SCNVector3( 0.36, 0.22, 0),
+            rot: armRotR, to: root)
+
+        // Lower arms
+        add(SCNCylinder(radius: 0.055, height: 0.32),
+            mat: bodyMat(), pos: SCNVector3(-0.36, 0.0, 0),
+            rot: armRot, to: root)
+        add(SCNCylinder(radius: 0.055, height: 0.32),
+            mat: bodyMat(), pos: SCNVector3( 0.36, 0.0, 0),
+            rot: armRotR, to: root)
+
+        // Hands
+        add(SCNSphere(radius: 0.08), mat: glowMat(),
+            pos: SCNVector3(-0.55, 0.0, 0), to: root)
+        add(SCNSphere(radius: 0.08), mat: glowMat(),
+            pos: SCNVector3( 0.55, 0.0, 0), to: root)
+
+        // Pelvis
+        add(SCNBox(width: 0.38, height: 0.14, length: 0.2, chamferRadius: 0.02),
+            mat: bodyMat(), pos: SCNVector3(0, -0.07, 0), to: root)
+
+        // Upper legs
+        add(SCNCylinder(radius: 0.09, height: 0.42),
+            mat: bodyMat(), pos: SCNVector3(-0.13, -0.38, 0), to: root)
+        add(SCNCylinder(radius: 0.09, height: 0.42),
+            mat: bodyMat(), pos: SCNVector3( 0.13, -0.38, 0), to: root)
+
+        // Knees
+        add(SCNSphere(radius: 0.09), mat: glowMat(),
+            pos: SCNVector3(-0.13, -0.6, 0), to: root)
+        add(SCNSphere(radius: 0.09), mat: glowMat(),
+            pos: SCNVector3( 0.13, -0.6, 0), to: root)
+
+        // Lower legs
+        add(SCNCylinder(radius: 0.075, height: 0.38),
+            mat: bodyMat(), pos: SCNVector3(-0.13, -0.82, 0), to: root)
+        add(SCNCylinder(radius: 0.075, height: 0.38),
+            mat: bodyMat(), pos: SCNVector3( 0.13, -0.82, 0), to: root)
+
+        // Feet
+        add(SCNBox(width: 0.14, height: 0.08, length: 0.26, chamferRadius: 0.03),
+            mat: bodyMat(), pos: SCNVector3(-0.13, -1.02, 0.04), to: root)
+        add(SCNBox(width: 0.14, height: 0.08, length: 0.26, chamferRadius: 0.03),
+            mat: bodyMat(), pos: SCNVector3( 0.13, -1.02, 0.04), to: root)
+
+        return root
+    }
+
     // MARK: - Camera
 
     private func setupCamera() {
-        // Arm anchored to player position, camera sits behind + above
         cameraArm = SCNNode()
         cameraArm.position = playerNode.position
         scene.rootNode.addChildNode(cameraArm)
@@ -171,7 +287,6 @@ class GameViewController: UIViewController {
     // MARK: - Lighting
 
     private func setupLighting() {
-        // Directional "moonlight"
         let moon = SCNLight()
         moon.type = .directional
         moon.color = UIColor(red: 0.35, green: 0.35, blue: 0.75, alpha: 1.0)
@@ -187,7 +302,6 @@ class GameViewController: UIViewController {
         moonNode.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 4, 0)
         scene.rootNode.addChildNode(moonNode)
 
-        // Dark ambient
         let ambient = SCNLight()
         ambient.type = .ambient
         ambient.color = UIColor(red: 0.04, green: 0.0, blue: 0.08, alpha: 1.0)
